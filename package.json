@@ -1,0 +1,8 @@
+{
+  "name": "socks5-ws-client",
+  "version": "1.0.0",
+  "bin": "socks5-ws-client.js",
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
