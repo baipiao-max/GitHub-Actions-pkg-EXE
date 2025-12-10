@@ -36,52 +36,52 @@ package.json   ← 可选，但最好有
 .github/workflows/build.yml
 
 
-内容如下（这是为你定制的 Windows EXE 构建脚本）：
+内容如下（这是为你定制的 Windows EXE 构建脚本）:
 
-  name: Build Windows EXE
+name: Build Windows EXE
 
-  on:
-    push:
-      tags:
-        - "v*"
+on:
+  push:
+    tags:
+      - "v*"
 
-  permissions:
-    contents: write   # ← 必须加上这个！否则不能发布 Release
+permissions:
+  contents: write   # ← 必须加上这个！否则不能发布 Release
 
-  jobs:
-    build:
-      runs-on: windows-latest
+jobs:
+  build:
+    runs-on: windows-latest
 
-      steps:
-        - name: Checkout repository
-          uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-        - name: Install Node.js
-          uses: actions/setup-node@v4
-          with:
-            node-version: "18"
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
 
-        - name: Install dependencies
-          run: npm install
+      - name: Install dependencies
+        run: npm install
 
-        - name: Install pkg
-          run: npm install -g pkg
+      - name: Install pkg
+        run: npm install -g pkg
 
-        - name: Build EXE
-          run: pkg socks5-ws-client.js --targets node18-win-x64 --output socks5-ws.exe
+      - name: Build EXE
+        run: pkg socks5-ws-client.js --targets node18-win-x64 --output socks5-ws.exe
 
-        - name: Upload artifact
-          uses: actions/upload-artifact@v4
-          with:
-            name: socks5-ws.exe
-            path: socks5-ws.exe
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: socks5-ws.exe
+          path: socks5-ws.exe
 
-        - name: Create GitHub Release
-          uses: softprops/action-gh-release@v1
-          with:
-            files: socks5-ws.exe
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: socks5-ws.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
 🟧 第 3 步：发布一个 tag → 自动触发构建
