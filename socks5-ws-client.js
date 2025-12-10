@@ -8,7 +8,7 @@ const LOCAL_PORT = 1235;
 let ws = null;
 let wsReady = false;
 let connCounter = 1;
-const tcpMap = new Map();  // connID → clientSocket
+const tcpMap = new Map();
 
 //-------------------------------------
 // WebSocket 自动重连
@@ -24,7 +24,7 @@ function connectWS() {
     });
 
     ws.on("close", () => {
-        console.log("WS 已关闭，3秒后自动重连");
+        console.log("WS 已关闭，3秒后重连");
         wsReady = false;
         setTimeout(connectWS, 3000);
     });
@@ -33,25 +33,25 @@ function connectWS() {
         console.log("WS 错误:", e.message);
     });
 
-    ws.on("message", handleWSMessage);
+    ws.on("message", onWSMessage);
 }
 
 connectWS();
 
 //-------------------------------------
-// WS → 本地 Socks5 客户端
+// WS → 本地 SOCKS 客户端
 //-------------------------------------
-function handleWSMessage(msg) {
-    const str = msg.toString();
+function onWSMessage(buf) {
+    const str = buf.toString();
 
-    // TCP 数据
+    // TCP 数据格式：DATA:123|xxxxxx
     if (str.startsWith("DATA:")) {
         const sep = str.indexOf("|");
         const connID = str.slice(5, sep);
-        const payload = msg.slice(sep + 1);
+        const data = buf.slice(sep + 1);
 
         const client = tcpMap.get(connID);
-        if (client) client.write(payload);
+        if (client) client.write(data);
         return;
     }
 
@@ -59,31 +59,28 @@ function handleWSMessage(msg) {
     if (str.startsWith("CLOSE:")) {
         const connID = str.slice(6);
         const client = tcpMap.get(connID);
-        if (client) {
-            client.end();
-            tcpMap.delete(connID);
-        }
-        return;
+        if (client) client.end();
+        tcpMap.delete(connID);
     }
 }
 
 //-------------------------------------
-// 本地 Socks5 Server
+// SOCKS5
 //-------------------------------------
-function parseSocksAddr(req) {
+function parseAddr(req) {
     const atyp = req[3];
     let host, port, offset;
 
-    if (atyp === 0x01) {
+    if (atyp === 1) {
         host = req.slice(4, 8).join(".");
         offset = 8;
-    } else if (atyp === 0x03) {
+    } else {
         const len = req[4];
         host = req.slice(5, 5 + len).toString();
         offset = 5 + len;
     }
-
     port = req.readUInt16BE(offset);
+
     return { host, port };
 }
 
@@ -91,40 +88,37 @@ const server = net.createServer((client) => {
     console.log("新的 SOCKS5 连接");
 
     client.once("data", (chunk) => {
-        client.write(Buffer.from([0x05, 0x00]));  // 无密码
+        client.write(Buffer.from([0x05, 0x00]));  // 无密码认证
 
         client.once("data", (req) => {
-            const { host, port } = parseSocksAddr(req);
+            const { host, port } = parseAddr(req);
             const connID = (connCounter++).toString();
 
-            console.log(`TCP → ${host}:${port}   [ID=${connID}]`);
+            console.log(`TCP → ${host}:${port}    [ID=${connID}]`);
 
             tcpMap.set(connID, client);
 
-            // 要等待 WS 准备好
             if (!wsReady) {
-                console.log("WS 未连接，拒绝请求");
+                console.log("WS 不可用，关闭");
                 client.end();
                 return;
             }
 
-            // 发送 TCP CONNECT 请求
             ws.send(`TCP:${connID}|${host}:${port}|`);
 
-            // SOCKS5 返回连接成功
-            const resp = Buffer.from([
-                0x05, 0x00, 0x00, 0x01,
-                0, 0, 0, 0,
-                0, 0
+            // 回复 SOCKS5 "连接成功"
+            const rep = Buffer.from([
+                5, 0, 0, 1,
+                0,0,0,0,
+                0,0
             ]);
-            client.write(resp);
+            client.write(rep);
 
-            // 客户端 → WS
-            client.on("data", (buf) => {
+            client.on("data", (data) => {
                 if (wsReady) {
                     ws.send(Buffer.concat([
                         Buffer.from(`DATA:${connID}|`),
-                        buf
+                        data
                     ]));
                 }
             });
@@ -146,5 +140,5 @@ server.listen(LOCAL_PORT, () => {
     console.log("SOCKS5 代理已启动: 127.0.0.1:" + LOCAL_PORT);
 });
 
-// 保持进程常驻（防止 pkg EXE 退出）
+// 防止 pkg 退出
 setInterval(() => {}, 1 << 30);
