@@ -45,9 +45,13 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write   # ← 必须加上这个！否则不能发布 Release
+
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -55,7 +59,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "18"
 
       - name: Install dependencies
         run: npm install
@@ -64,7 +68,7 @@ jobs:
         run: npm install -g pkg
 
       - name: Build EXE
-        run: pkg socks5-ws-client.js --targets node20-win-x64 --output socks5-ws.exe
+        run: pkg socks5-ws-client.js --targets node18-win-x64 --output socks5-ws.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -78,6 +82,7 @@ jobs:
           files: socks5-ws.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 
 🟧 第 3 步：发布一个 tag → 自动触发构建
 
